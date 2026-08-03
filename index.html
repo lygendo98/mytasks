@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ניהול משימות אישי - Firebase Cloud</title>
+    <title>ניהול משימות אישי - מוגן בסיסמה</title>
     
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -32,7 +32,7 @@
             padding: 20px;
         }
 
-        .container { max-width: 1100px; margin: 0 auto; }
+        .container { max-width: 1100px; margin: 0 auto; display: none; }
         header { margin-bottom: 24px; }
         h1 { margin: 0 0 8px 0; font-size: 28px; }
 
@@ -91,11 +91,29 @@
         .btn-delete:hover { color: var(--status-stuck); }
 
         .sync-status { font-size: 12px; color: #676879; margin-top: 5px; }
+
+        /* מסך נעילה */
+        #lockScreen {
+            text-align: center; margin-top: 100px;
+            background: white; padding: 40px; border-radius: 12px;
+            max-width: 400px; margin-left: auto; margin-right: auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
 
-<div class="container">
+<!-- מסך נעילה -->
+<div id="lockScreen">
+    <h2>🔒 לוח משימות פרטי</h2>
+    <p>הכנס סיסמה כדי לצפות במשימות:</p>
+    <input type="password" id="passInput" placeholder="הכנס סיסמה..." style="width: 80%; margin-bottom: 12px;"><br>
+    <button onclick="checkPassword()" style="width: 90%;">התחבר</button>
+    <p id="errorMsg" style="color: red; display: none; margin-top: 10px; font-size: 13px;">סיסמה שגויה!</p>
+</div>
+
+<!-- המערכת הראשי (מוסתר עד להקשת סיסמה) -->
+<div class="container" id="appContainer">
     <header>
         <h1>📌 לוח משימות אישי בענן</h1>
         <div id="syncStatus" class="sync-status">🔄 מתחבר לענן...</div>
@@ -118,7 +136,35 @@
 </div>
 
 <script>
-    // הגדרות Firebase המעודכנות מתוך צילום המסך שלך
+    // ------------------------------------------------------------------
+    // 🔑 הגדרת הסיסמה האישית שלך (שנה כאן אם תרצה סיסמה אחרת)
+    // ------------------------------------------------------------------
+    const MY_SECRET_PASSWORD = "Lyon5800";
+
+    function checkPassword() {
+        const input = document.getElementById('passInput').value;
+        if (input === MY_SECRET_PASSWORD) {
+            sessionStorage.setItem('is_authenticated', 'true');
+            unlockApp();
+        } else {
+            document.getElementById('errorMsg').style.display = 'block';
+        }
+    }
+
+    function unlockApp() {
+        document.getElementById('lockScreen').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'block';
+        initFirebase();
+    }
+
+    // בדיקה אם המשתמש כבר מחובר בסשן הנוכחי
+    if (sessionStorage.getItem('is_authenticated') === 'true') {
+        unlockApp();
+    }
+
+    // ------------------------------------------------------------------
+    // הגדרות Firebase
+    // ------------------------------------------------------------------
     const firebaseConfig = {
         apiKey: "AIzaSyAnFD98tsBIz8pVBQOSYHFDsCz2hpuSD4g",
         authDomain: "my-tasks-app-27dd6.firebaseapp.com",
@@ -129,10 +175,7 @@
         appId: "1:723702298941:web:c594b0666949f683e5ad54"
     };
 
-    // אתחול Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
+    let db;
     const defaultCategories = [
         "לימודים אורות ישראל",
         "לימודים האוניברסיטה הפתוחה",
@@ -144,24 +187,30 @@
     let categories = [];
     let tasks = [];
 
-    // סנכרון בזמן אמת מול Firebase
-    db.ref().on('value', (snapshot) => {
-        const data = snapshot.val() || {};
-        
-        categories = data.categories || defaultCategories;
-        if (!data.categories) {
-            db.ref('categories').set(defaultCategories);
+    function initFirebase() {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
         }
+        db = firebase.database();
 
-        const tasksObj = data.tasks || {};
-        tasks = Object.keys(tasksObj).map(key => ({
-            id: key,
-            ...tasksObj[key]
-        }));
+        db.ref().on('value', (snapshot) => {
+            const data = snapshot.val() || {};
+            
+            categories = data.categories || defaultCategories;
+            if (!data.categories) {
+                db.ref('categories').set(defaultCategories);
+            }
 
-        document.getElementById('syncStatus').innerText = '🟢 מסונכרן בזמן אמת בענן';
-        renderApp();
-    });
+            const tasksObj = data.tasks || {};
+            tasks = Object.keys(tasksObj).map(key => ({
+                id: key,
+                ...tasksObj[key]
+            }));
+
+            document.getElementById('syncStatus').innerText = '🟢 מסונכרן בזמן אמת בענן';
+            renderApp();
+        });
+    }
 
     function addCategoryPrompt() {
         const name = prompt("הכנס שם לקטגוריה החדשה:");
@@ -295,7 +344,7 @@
         });
     }
 
-    // API מובנה לחיבור עתידי של AI
+    // API מובנה ל-AI
     window.TaskAPI = {
         getTasksJSON: () => JSON.stringify(tasks, null, 2),
         addTask: (data) => db.ref('tasks').push({
