@@ -227,9 +227,11 @@
 
     function checkPassword() {
         const input = document.getElementById('passInput').value;
-        if (input === MY_SECRET_PASSWORD) {
-            sessionStorage.setItem('is_authenticated', 'true');
+     window.addEventListener('DOMContentLoaded', () => {
+        if (sessionStorage.getItem('is_authenticated') === 'true') {
             unlockApp();
+        }
+    });
         } else {
             document.getElementById('errorMsg').style.display = 'block';
         }
