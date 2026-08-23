@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ניהול משימות אישי - מוגן בסיסמה</title>
+    <title>ניהול משימות אישי - דחוף והיום</title>
     
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -22,6 +22,8 @@
             --priority-high: #784bd1;
             --priority-med: #579bfc;
             --priority-low: #00c875;
+            --urgent-bg: #fff1f0;
+            --urgent-border: #ffa39e;
         }
 
         body {
@@ -33,26 +35,45 @@
         }
 
         .container { max-width: 1100px; margin: 0 auto; display: none; }
-        header { margin-bottom: 24px; }
+        header { margin-bottom: 20px; }
         h1 { margin: 0 0 8px 0; font-size: 28px; }
 
         .toolbar {
-            display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;
-            background: white; padding: 16px; border-radius: 8px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;
+            background: white; padding: 14px 16px; border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08); align-items: center;
         }
 
         input, select, button {
-            padding: 10px 14px; border: 1px solid var(--border-color);
+            padding: 8px 12px; border: 1px solid var(--border-color);
             border-radius: 6px; font-size: 14px; outline: none;
         }
 
         button {
             background-color: var(--primary); color: white; border: none;
-            cursor: pointer; font-weight: bold; transition: opacity 0.2s;
+            cursor: pointer; font-weight: bold; transition: all 0.2s;
         }
         button:hover { opacity: 0.9; }
         .btn-secondary { background-color: #676879; }
+        .btn-urgent-toggle {
+            background-color: #ffefe6; color: #d4380d; border: 1px solid #ffbb96;
+        }
+        .btn-urgent-toggle.active {
+            background-color: #ff4d4f; color: white; border-color: #ff4d4f;
+        }
+
+        /* באנר דחוף */
+        .urgent-summary-card {
+            background: #fff; border-right: 5px solid #ff4d4f;
+            padding: 14px 18px; border-radius: 8px; margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: flex;
+            align-items: center; justify-content: space-between;
+        }
+        .urgent-info { font-size: 15px; font-weight: bold; }
+        .urgent-count-badge {
+            background: #ff4d4f; color: white; border-radius: 20px;
+            padding: 2px 10px; font-size: 13px; margin-right: 6px;
+        }
 
         .group-container {
             background: white; border-radius: 8px; margin-bottom: 24px;
@@ -82,7 +103,7 @@
 
         .badge-select {
             color: white; font-weight: bold; border: none; text-align: center;
-            cursor: pointer; width: 120px; border-radius: 4px;
+            cursor: pointer; width: 110px; border-radius: 4px;
         }
 
         .status-בוצע { background-color: var(--status-done); }
@@ -93,6 +114,19 @@
         .priority-גבוהה { background-color: var(--priority-high); }
         .priority-בינונית { background-color: var(--priority-med); }
         .priority-נמוכה { background-color: var(--priority-low); }
+
+        /* תאריכים דחופים */
+        .date-overdue {
+            color: #cf1322; font-weight: bold; background: #fff1f0;
+            padding: 3px 6px; border-radius: 4px; border: 1px solid #ffa39e;
+        }
+        .date-today {
+            color: #d4380d; font-weight: bold; background: #fff7e6;
+            padding: 3px 6px; border-radius: 4px; border: 1px solid #ffd591;
+        }
+        .date-normal {
+            padding: 2px 4px; font-size: 13px;
+        }
 
         .btn-delete { background: none; color: #c5c7d0; border: none; font-size: 16px; cursor: pointer; }
         .btn-delete:hover { color: var(--status-stuck); }
@@ -126,6 +160,15 @@
         <div id="syncStatus" class="sync-status">🔄 מתחבר לענן...</div>
     </header>
 
+    <!-- באנר משימות דחופות -->
+    <div class="urgent-summary-card" id="urgentCard">
+        <div class="urgent-info">
+            <span>⚡ משימות להיום ובאיחור:</span>
+            <span class="urgent-count-badge" id="urgentCount">0</span>
+        </div>
+        <button class="btn-urgent-toggle" id="urgentFilterBtn" onclick="toggleUrgentOnly()">הצג רק דחופות</button>
+    </div>
+
     <div class="toolbar">
         <input type="text" id="searchInput" placeholder="🔍 חפש משימה..." oninput="renderApp()">
         
@@ -134,7 +177,7 @@
         </select>
 
         <div style="margin-right: auto; display: flex; gap: 8px;">
-            <button onclick="addCategoryPrompt()" class="btn-secondary">+ קטגוריה חדשה</button>
+            <button onclick="addCategoryPrompt()" class="btn-secondary">+ קטגוריה</button>
             <button onclick="addTaskPrompt()">+ משימה חדשה</button>
         </div>
     </div>
@@ -147,6 +190,8 @@
     // 🔑 הגדרת הסיסמה האישית שלך
     // ------------------------------------------------------------------
     const MY_SECRET_PASSWORD = "Lyon5800";
+
+    let showUrgentOnly = false;
 
     function checkPassword() {
         const input = document.getElementById('passInput').value;
@@ -218,6 +263,29 @@
         });
     }
 
+    function getTodayString() {
+        return new Date().toISOString().split('T')[0];
+    }
+
+    function isTaskUrgent(task) {
+        if (task.status === "בוצע") return false;
+        if (!task.dueDate) return false;
+        return task.dueDate <= getTodayString();
+    }
+
+    function toggleUrgentOnly() {
+        showUrgentOnly = !showUrgentOnly;
+        const btn = document.getElementById('urgentFilterBtn');
+        if (showUrgentOnly) {
+            btn.classList.add('active');
+            btn.innerText = 'הצג את כל המשימות';
+        } else {
+            btn.classList.remove('active');
+            btn.innerText = 'הצג רק דחופות';
+        }
+        renderApp();
+    }
+
     function addCategoryPrompt() {
         const name = prompt("הכנס שם לקטגוריה החדשה:");
         if (name && !categories.includes(name)) {
@@ -231,11 +299,9 @@
         const confirmMsg = `האם אתה בטוח שברצונך למחוק את הקטגוריה "${catName}"?\nפעולה זו תמחק לצמיתות גם את ${taskCount} המשימות שתחתיה!`;
         
         if (confirm(confirmMsg)) {
-            // 1. הסרת הקטגוריה מהמערך ועדכון ב-Firebase
             const updatedCategories = categories.filter(c => c !== catName);
             db.ref('categories').set(updatedCategories);
 
-            // 2. מחיקת כל המשימות השייכות לקטגוריה זו
             tasks.forEach(task => {
                 if (task.category === catName) {
                     db.ref(`tasks/${task.id}`).remove();
@@ -262,7 +328,7 @@
             category: selectedCategory,
             status: "טרם התחיל",
             priority: "בינונית",
-            dueDate: new Date().toISOString().split('T')[0]
+            dueDate: getTodayString()
         });
     }
 
@@ -287,6 +353,12 @@
     }
 
     function renderApp() {
+        const todayStr = getTodayString();
+        
+        // עדכון מונה משימות דחופות
+        const urgentCount = tasks.filter(t => isTaskUrgent(t)).length;
+        document.getElementById('urgentCount').innerText = urgentCount;
+
         const filterCategory = document.getElementById('filterCategory');
         const currentFilter = filterCategory.value;
         filterCategory.innerHTML = '<option value="ALL">כל הקטגוריות</option>' + 
@@ -299,14 +371,15 @@
         const filteredTasks = tasks.filter(t => {
             const matchesCategory = currentFilter === 'ALL' || t.category === currentFilter;
             const matchesSearch = t.title.toLowerCase().includes(searchQuery);
-            return matchesCategory && matchesSearch;
+            const matchesUrgent = !showUrgentOnly || isTaskUrgent(t);
+            return matchesCategory && matchesSearch && matchesUrgent;
         });
 
         categories.forEach(category => {
             const categoryTasks = filteredTasks.filter(t => t.category === category);
             
             if (currentFilter !== 'ALL' && currentFilter !== category) return;
-            if (searchQuery && categoryTasks.length === 0) return;
+            if ((searchQuery || showUrgentOnly) && categoryTasks.length === 0) return;
 
             const groupEl = document.createElement('div');
             groupEl.className = 'group-container';
@@ -320,16 +393,29 @@
                     <thead>
                         <tr>
                             <th>שם המשימה (לחץ לעריכה)</th>
-                            <th style="width: 140px; text-align: center;">סטטוס</th>
-                            <th style="width: 140px; text-align: center;">עדיפות</th>
-                            <th style="width: 130px;">תאריך יעד</th>
+                            <th style="width: 130px; text-align: center;">סטטוס</th>
+                            <th style="width: 130px; text-align: center;">עדיפות</th>
+                            <th style="width: 150px;">תאריך יעד</th>
                             <th style="width: 40px;"></th>
                         </tr>
                     </thead>
                     <tbody>
                         ${categoryTasks.length === 0 ? `
-                            <tr><td colspan="5" style="color: #888; font-style: italic;">אין משימות בקטגוריה זו</td></tr>
-                        ` : categoryTasks.map(task => `
+                            <tr><td colspan="5" style="color: #888; font-style: italic;">אין משימות להצגה בקטגוריה זו</td></tr>
+                        ` : categoryTasks.map(task => {
+                            let dateClass = "date-normal";
+                            let dateNotice = "";
+                            if (task.status !== "בוצע" && task.dueDate) {
+                                if (task.dueDate < todayStr) {
+                                    dateClass = "date-overdue";
+                                    dateNotice = " ⚠️";
+                                } else if (task.dueDate === todayStr) {
+                                    dateClass = "date-today";
+                                    dateNotice = " ⏰";
+                                }
+                            }
+
+                            return `
                             <tr>
                                 <td>
                                     <div class="task-title" onclick="editTaskTitle('${task.id}')">
@@ -355,15 +441,15 @@
                                     </select>
                                 </td>
                                 <td>
-                                    <input type="date" value="${task.dueDate}" 
-                                           style="padding: 2px 4px; font-size: 12px;"
+                                    <input type="date" value="${task.dueDate}" class="${dateClass}"
                                            onchange="updateTaskField('${task.id}', 'dueDate', this.value)">
+                                    ${dateNotice}
                                 </td>
                                 <td>
                                     <button class="btn-delete" onclick="deleteTask('${task.id}')">🗑️</button>
                                 </td>
                             </tr>
-                        `).join('')}
+                        `}).join('')}
                     </tbody>
                 </table>
             `;
@@ -379,7 +465,7 @@
             category: data.category || categories[0],
             status: data.status || "טרם התחיל",
             priority: data.priority || "בינונית",
-            dueDate: data.dueDate || new Date().toISOString().split('T')[0]
+            dueDate: data.dueDate || getTodayString()
         }),
         deleteTask: (id) => db.ref(`tasks/${id}`).remove()
     };
