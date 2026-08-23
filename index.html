@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ניהול משימות אישי - דחוף והיום</title>
+    <title>ניהול משימות אישי - גרירה ושחרור</title>
     
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -22,8 +22,6 @@
             --priority-high: #784bd1;
             --priority-med: #579bfc;
             --priority-low: #00c875;
-            --urgent-bg: #fff1f0;
-            --urgent-border: #ffa39e;
         }
 
         body {
@@ -78,6 +76,14 @@
         .group-container {
             background: white; border-radius: 8px; margin-bottom: 24px;
             padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            transition: border 0.2s, background-color 0.2s;
+            border: 2px solid transparent;
+        }
+
+        /* עיצוב בעת גרירה מעל הקטגוריה */
+        .group-container.drag-over {
+            border: 2px dashed var(--primary);
+            background-color: #f0f7ff;
         }
 
         .group-header {
@@ -95,6 +101,32 @@
         table { width: 100%; border-collapse: collapse; text-align: right; }
         th, td { padding: 10px; border-bottom: 1px solid #e6e9ef; font-size: 14px; }
         th { color: #676879; font-weight: normal; }
+
+        /* שורת משימה הניתנת לגרירה */
+        tr.draggable-row {
+            cursor: grab;
+            transition: background-color 0.15s, opacity 0.15s;
+        }
+        tr.draggable-row:active {
+            cursor: grabbing;
+        }
+        tr.dragging {
+            opacity: 0.4;
+            background-color: #e8f0fe;
+        }
+
+        .drag-handle {
+            color: #a0a4b8;
+            font-size: 16px;
+            margin-left: 8px;
+            cursor: grab;
+            user-select: none;
+        }
+
+        .task-title-container {
+            display: flex;
+            align-items: center;
+        }
 
         .task-title { cursor: pointer; display: flex; align-items: center; gap: 6px; }
         .task-title:hover { color: var(--primary); }
@@ -115,7 +147,6 @@
         .priority-בינונית { background-color: var(--priority-med); }
         .priority-נמוכה { background-color: var(--priority-low); }
 
-        /* תאריכים דחופים */
         .date-overdue {
             color: #cf1322; font-weight: bold; background: #fff1f0;
             padding: 3px 6px; border-radius: 4px; border: 1px solid #ffa39e;
@@ -192,6 +223,7 @@
     const MY_SECRET_PASSWORD = "Lyon5800";
 
     let showUrgentOnly = false;
+    let draggedTaskId = null;
 
     function checkPassword() {
         const input = document.getElementById('passInput').value;
@@ -352,10 +384,41 @@
         db.ref(`tasks/${id}/${field}`).set(value);
     }
 
+    // ------------------------------------------------------------------
+    // פונקציות Drag and Drop
+    // ------------------------------------------------------------------
+    function handleDragStart(e, taskId) {
+        draggedTaskId = taskId;
+        e.dataTransfer.setData('text/plain', taskId);
+        e.currentTarget.classList.add('dragging');
+    }
+
+    function handleDragEnd(e) {
+        e.currentTarget.classList.remove('dragging');
+        document.querySelectorAll('.group-container').forEach(el => el.classList.remove('drag-over'));
+    }
+
+    function handleDragOver(e) {
+        e.preventDefault();
+        e.currentTarget.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+        e.currentTarget.classList.remove('drag-over');
+    }
+
+    function handleDrop(e, targetCategory) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag-over');
+        if (draggedTaskId) {
+            updateTaskField(draggedTaskId, 'category', targetCategory);
+            draggedTaskId = null;
+        }
+    }
+
     function renderApp() {
         const todayStr = getTodayString();
         
-        // עדכון מונה משימות דחופות
         const urgentCount = tasks.filter(t => isTaskUrgent(t)).length;
         document.getElementById('urgentCount').innerText = urgentCount;
 
@@ -383,6 +446,9 @@
 
             const groupEl = document.createElement('div');
             groupEl.className = 'group-container';
+            groupEl.ondragover = handleDragOver;
+            groupEl.ondragleave = handleDragLeave;
+            groupEl.ondrop = (e) => handleDrop(e, category);
             
             groupEl.innerHTML = `
                 <div class="group-header">
@@ -401,7 +467,7 @@
                     </thead>
                     <tbody>
                         ${categoryTasks.length === 0 ? `
-                            <tr><td colspan="5" style="color: #888; font-style: italic;">אין משימות להצגה בקטגוריה זו</td></tr>
+                            <tr><td colspan="5" style="color: #888; font-style: italic;">גרור לכאן משימה או הוסף חדשה</td></tr>
                         ` : categoryTasks.map(task => {
                             let dateClass = "date-normal";
                             let dateNotice = "";
@@ -416,11 +482,16 @@
                             }
 
                             return `
-                            <tr>
+                            <tr class="draggable-row" draggable="true" 
+                                ondragstart="handleDragStart(event, '${task.id}')"
+                                ondragend="handleDragEnd(event)">
                                 <td>
-                                    <div class="task-title" onclick="editTaskTitle('${task.id}')">
-                                        <span>${task.title}</span>
-                                        <span class="edit-icon">✏️</span>
+                                    <div class="task-title-container">
+                                        <span class="drag-handle" title="גרור כדי להעביר קטגוריה">⠿</span>
+                                        <div class="task-title" onclick="editTaskTitle('${task.id}')">
+                                            <span>${task.title}</span>
+                                            <span class="edit-icon">✏️</span>
+                                        </div>
                                     </div>
                                 </td>
                                 <td style="text-align: center;">
