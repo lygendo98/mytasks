@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ניהול משימות אישי - גרירה ושחרור</title>
+    <title>ניהול משימות אישי</title>
     
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
@@ -60,7 +60,6 @@
             background-color: #ff4d4f; color: white; border-color: #ff4d4f;
         }
 
-        /* באנר דחוף */
         .urgent-summary-card {
             background: #fff; border-right: 5px solid #ff4d4f;
             padding: 14px 18px; border-radius: 8px; margin-bottom: 20px;
@@ -80,7 +79,6 @@
             border: 2px solid transparent;
         }
 
-        /* עיצוב בעת גרירה מעל הקטגוריה */
         .group-container.drag-over {
             border: 2px dashed var(--primary);
             background-color: #f0f7ff;
@@ -102,7 +100,6 @@
         th, td { padding: 10px; border-bottom: 1px solid #e6e9ef; font-size: 14px; }
         th { color: #676879; font-weight: normal; }
 
-        /* שורת משימה הניתנת לגרירה */
         tr.draggable-row {
             cursor: grab;
             transition: background-color 0.15s, opacity 0.15s;
@@ -164,7 +161,6 @@
 
         .sync-status { font-size: 12px; color: #676879; margin-top: 5px; }
 
-        /* מסך נעילה */
         #lockScreen {
             text-align: center; margin-top: 100px;
             background: white; padding: 40px; border-radius: 12px;
@@ -179,7 +175,7 @@
 <div id="lockScreen">
     <h2>🔒 לוח משימות פרטי</h2>
     <p>הכנס סיסמה כדי לצפות במשימות:</p>
-    <input type="password" id="passInput" placeholder="הכנס סיסמה..." style="width: 80%; margin-bottom: 12px;"><br>
+    <input type="password" id="passInput" placeholder="הכנס סיסמה..." style="width: 80%; margin-bottom: 12px;" onkeypress="if(event.key==='Enter') checkPassword()"><br>
     <button onclick="checkPassword()" style="width: 90%;">התחבר</button>
     <p id="errorMsg" style="color: red; display: none; margin-top: 10px; font-size: 13px;">סיסמה שגויה!</p>
 </div>
@@ -191,7 +187,6 @@
         <div id="syncStatus" class="sync-status">🔄 מתחבר לענן...</div>
     </header>
 
-    <!-- באנר משימות דחופות -->
     <div class="urgent-summary-card" id="urgentCard">
         <div class="urgent-info">
             <span>⚡ משימות להיום ובאיחור:</span>
@@ -218,38 +213,24 @@
 
 <script>
     // ------------------------------------------------------------------
-    // 🔑 הגדרת הסיסמה האישית שלך
+    // 🔑 הגדרת הסיסמה
     // ------------------------------------------------------------------
     const MY_SECRET_PASSWORD = "Lyon5800";
 
     let showUrgentOnly = false;
     let draggedTaskId = null;
+    let db;
+    let categories = [];
+    let tasks = [];
 
-    function checkPassword() {
-        const input = document.getElementById('passInput').value;
-     window.addEventListener('DOMContentLoaded', () => {
-        if (sessionStorage.getItem('is_authenticated') === 'true') {
-            unlockApp();
-        }
-    });
-        } else {
-            document.getElementById('errorMsg').style.display = 'block';
-        }
-    }
+    const defaultCategories = [
+        "לימודים אורות ישראל",
+        "לימודים האוניברסיטה הפתוחה",
+        "משימות שוטפות",
+        "נתיב",
+        "גט"
+    ];
 
-    function unlockApp() {
-        document.getElementById('lockScreen').style.display = 'none';
-        document.getElementById('appContainer').style.display = 'block';
-        initFirebase();
-    }
-
-    if (sessionStorage.getItem('is_authenticated') === 'true') {
-        unlockApp();
-    }
-
-    // ------------------------------------------------------------------
-    // הגדרות Firebase
-    // ------------------------------------------------------------------
     const firebaseConfig = {
         apiKey: "AIzaSyAnFD98tsBIz8pVBQOSYHFDsCz2hpuSD4g",
         authDomain: "my-tasks-app-27dd6.firebaseapp.com",
@@ -260,17 +241,23 @@
         appId: "1:723702298941:web:c594b0666949f683e5ad54"
     };
 
-    let db;
-    const defaultCategories = [
-        "לימודים אורות ישראל",
-        "לימודים האוניברסיטה הפתוחה",
-        "משימות שוטפות",
-        "נתיב",
-        "גט"
-    ];
+    function checkPassword() {
+        const input = document.getElementById('passInput').value;
+        if (input === MY_SECRET_PASSWORD) {
+            sessionStorage.setItem('is_authenticated', 'true');
+            unlockApp();
+        } else {
+            document.getElementById('errorMsg').style.display = 'block';
+        }
+    }
 
-    let categories = [];
-    let tasks = [];
+    function unlockApp() {
+        const lock = document.getElementById('lockScreen');
+        const app = document.getElementById('appContainer');
+        if (lock) lock.style.display = 'none';
+        if (app) app.style.display = 'block';
+        initFirebase();
+    }
 
     function initFirebase() {
         if (!firebase.apps.length) {
@@ -292,7 +279,10 @@
                 ...tasksObj[key]
             }));
 
-            document.getElementById('syncStatus').innerText = '🟢 מסונכרן בזמן אמת בענן';
+            const syncStatusEl = document.getElementById('syncStatus');
+            if (syncStatusEl) {
+                syncStatusEl.innerText = '🟢 מסונכרן בזמן אמת בענן';
+            }
             renderApp();
         });
     }
@@ -386,9 +376,6 @@
         db.ref(`tasks/${id}/${field}`).set(value);
     }
 
-    // ------------------------------------------------------------------
-    // פונקציות Drag and Drop
-    // ------------------------------------------------------------------
     function handleDragStart(e, taskId) {
         draggedTaskId = taskId;
         e.dataTransfer.setData('text/plain', taskId);
@@ -422,20 +409,23 @@
         const todayStr = getTodayString();
         
         const urgentCount = tasks.filter(t => isTaskUrgent(t)).length;
-        document.getElementById('urgentCount').innerText = urgentCount;
+        const urgentCountEl = document.getElementById('urgentCount');
+        if (urgentCountEl) urgentCountEl.innerText = urgentCount;
 
         const filterCategory = document.getElementById('filterCategory');
+        if (!filterCategory) return;
+        
         const currentFilter = filterCategory.value;
         filterCategory.innerHTML = '<option value="ALL">כל הקטגוריות</option>' + 
             categories.map(c => `<option value="${c}" ${c === currentFilter ? 'selected' : ''}>${c}</option>`).join('');
 
-        const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+        const searchQuery = (document.getElementById('searchInput').value || '').toLowerCase();
         const board = document.getElementById('board');
         board.innerHTML = '';
 
         const filteredTasks = tasks.filter(t => {
             const matchesCategory = currentFilter === 'ALL' || t.category === currentFilter;
-            const matchesSearch = t.title.toLowerCase().includes(searchQuery);
+            const matchesSearch = (t.title || '').toLowerCase().includes(searchQuery);
             const matchesUrgent = !showUrgentOnly || isTaskUrgent(t);
             return matchesCategory && matchesSearch && matchesUrgent;
         });
@@ -497,7 +487,7 @@
                                     </div>
                                 </td>
                                 <td style="text-align: center;">
-                                    <select class="badge-select status-${task.status.replace(/\s+/g, '-')}" 
+                                    <select class="badge-select status-${(task.status || '').replace(/\s+/g, '-')}" 
                                             onchange="updateTaskField('${task.id}', 'status', this.value)">
                                         <option value="טרם התחיל" ${task.status === 'טרם התחיל' ? 'selected' : ''}>טרם התחיל</option>
                                         <option value="בעבודה" ${task.status === 'בעבודה' ? 'selected' : ''}>בעבודה</option>
@@ -529,6 +519,13 @@
             board.appendChild(groupEl);
         });
     }
+
+    // בדיקה בהפעלה ראשונית / רענון
+    window.addEventListener('DOMContentLoaded', () => {
+        if (sessionStorage.getItem('is_authenticated') === 'true') {
+            unlockApp();
+        }
+    });
 
     // API מובנה ל-AI
     window.TaskAPI = {
