@@ -45,6 +45,7 @@
         input, select, button {
             padding: 8px 12px; border: 1px solid var(--border-color);
             border-radius: 6px; font-size: 14px; outline: none;
+            box-sizing: border-box;
         }
 
         button {
@@ -161,11 +162,77 @@
 
         .sync-status { font-size: 12px; color: #676879; margin-top: 5px; }
 
+        /* מסך נעילה */
         #lockScreen {
             text-align: center; margin-top: 100px;
             background: white; padding: 40px; border-radius: 12px;
             max-width: 400px; margin-left: auto; margin-right: auto;
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        /* מודאל מעוצב להוספת משימה */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(3px);
+        }
+
+        .modal-card {
+            background: white;
+            width: 90%;
+            max-width: 480px;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            animation: modalFadeIn 0.2s ease-out;
+        }
+
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: translateY(-15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .modal-header h3 { margin: 0; font-size: 20px; color: var(--text-main); }
+        .modal-close-btn {
+            background: none; border: none; font-size: 20px;
+            color: #888; cursor: pointer; padding: 0; line-height: 1;
+        }
+        .modal-close-btn:hover { color: #333; }
+
+        .form-group {
+            margin-bottom: 16px;
+            text-align: right;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 22px;
         }
     </style>
 </head>
@@ -204,11 +271,51 @@
 
         <div style="margin-right: auto; display: flex; gap: 8px;">
             <button onclick="addCategoryPrompt()" class="btn-secondary">+ קטגוריה</button>
-            <button onclick="addTaskPrompt()">+ משימה חדשה</button>
+            <button onclick="openAddTaskModal()">+ משימה חדשה</button>
         </div>
     </div>
 
     <div id="board"></div>
+</div>
+
+<!-- מודאל הוספת משימה חדשה -->
+<div class="modal-overlay" id="taskModal" onclick="if(event.target === this) closeAddTaskModal()">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>✨ הוספת משימה חדשה</h3>
+            <button class="modal-close-btn" onclick="closeAddTaskModal()">✕</button>
+        </div>
+        
+        <div class="form-group">
+            <label for="modalTaskTitle">שם המשימה *</label>
+            <input type="text" id="modalTaskTitle" placeholder="מה צריך לעשות?" onkeypress="if(event.key==='Enter') submitAddTaskModal()">
+        </div>
+
+        <div class="form-group">
+            <label for="modalTaskCategory">קטגוריה</label>
+            <select id="modalTaskCategory"></select>
+        </div>
+
+        <div style="display: flex; gap: 12px;">
+            <div class="form-group" style="flex: 1;">
+                <label for="modalTaskPriority">עדיפות</label>
+                <select id="modalTaskPriority">
+                    <option value="נמוכה">נמוכה</option>
+                    <option value="בינונית" selected>בינונית</option>
+                    <option value="גבוהה">גבוהה</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex: 1;">
+                <label for="modalTaskDueDate">תאריך יעד</label>
+                <input type="date" id="modalTaskDueDate">
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeAddTaskModal()">ביטול</button>
+            <button onclick="submitAddTaskModal()">הוסף משימה</button>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -321,8 +428,8 @@
 
     function addCategoryPrompt() {
         const name = prompt("הכנס שם לקטגוריה החדשה:");
-        if (name && !categories.includes(name)) {
-            categories.push(name);
+        if (name && !categories.includes(name.trim())) {
+            categories.push(name.trim());
             db.ref('categories').set(categories);
         }
     }
@@ -343,27 +450,51 @@
         }
     }
 
-    function addTaskPrompt() {
-        const title = prompt("שם המשימה:");
-        if (!title) return;
+    // ------------------------------------------------------------------
+    // ניהול מודאל הוספת משימה
+    // ------------------------------------------------------------------
+    function openAddTaskModal() {
+        const select = document.getElementById('modalTaskCategory');
+        select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
         
-        const categoryOptions = categories.map((c, i) => `${i + 1}. ${c}`).join("\n");
-        const catIndex = prompt(`בחר מספר קטגוריה:\n${categoryOptions}`, "1");
+        document.getElementById('modalTaskTitle').value = '';
+        document.getElementById('modalTaskPriority').value = 'בינונית';
+        document.getElementById('modalTaskDueDate').value = getTodayString();
         
-        let selectedCategory = categories[0];
-        if (catIndex && !isNaN(catIndex) && categories[catIndex - 1]) {
-            selectedCategory = categories[catIndex - 1];
+        document.getElementById('taskModal').style.display = 'flex';
+        setTimeout(() => document.getElementById('modalTaskTitle').focus(), 50);
+    }
+
+    function closeAddTaskModal() {
+        document.getElementById('taskModal').style.display = 'none';
+    }
+
+    function submitAddTaskModal() {
+        const title = document.getElementById('modalTaskTitle').value.trim();
+        if (!title) {
+            alert("נא להזין שם משימה");
+            return;
         }
+
+        const category = document.getElementById('modalTaskCategory').value;
+        const priority = document.getElementById('modalTaskPriority').value;
+        const dueDate = document.getElementById('modalTaskDueDate').value || getTodayString();
 
         const newTaskRef = db.ref('tasks').push();
         newTaskRef.set({
             title: title,
-            category: selectedCategory,
+            category: category,
             status: "טרם התחיל",
-            priority: "בינונית",
-            dueDate: getTodayString()
+            priority: priority,
+            dueDate: dueDate
         });
+
+        closeAddTaskModal();
     }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeAddTaskModal();
+    });
 
     function editTaskTitle(id) {
         const task = tasks.find(t => t.id === id);
