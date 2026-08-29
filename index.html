@@ -181,7 +181,7 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        /* מודאל הוספת משימה */
+        /* מודאלים מעוצבים */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -432,6 +432,58 @@
     </div>
 </div>
 
+<!-- מודאל עריכת משימה קיימת -->
+<div class="modal-overlay" id="editTaskModal" onclick="if(event.target === this) closeEditTaskModal()">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h3>✏️ עריכת משימה</h3>
+            <button class="modal-close-btn" onclick="closeEditTaskModal()">✕</button>
+        </div>
+        
+        <input type="hidden" id="editTaskId">
+
+        <div class="form-group">
+            <label for="editTaskTitle">שם המשימה *</label>
+            <input type="text" id="editTaskTitle" placeholder="שם המשימה" onkeypress="if(event.key==='Enter') submitEditTaskModal()">
+        </div>
+
+        <div class="form-group">
+            <label for="editTaskCategory">קטגוריה</label>
+            <select id="editTaskCategory"></select>
+        </div>
+
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div class="form-group" style="flex: 1; min-width: 130px;">
+                <label for="editTaskPriority">עדיפות</label>
+                <select id="editTaskPriority">
+                    <option value="נמוכה">נמוכה</option>
+                    <option value="בינונית">בינונית</option>
+                    <option value="גבוהה">גבוהה</option>
+                </select>
+            </div>
+            <div class="form-group" style="flex: 1; min-width: 130px;">
+                <label for="editTaskDueDate">תאריך יעד</label>
+                <input type="date" id="editTaskDueDate">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="editTaskRecurring">חזרתיות (אוטומטי)</label>
+            <select id="editTaskRecurring">
+                <option value="none">ללא (חד-פעמי)</option>
+                <option value="daily">🔁 יומי (כל יום)</option>
+                <option value="weekly">🔁 שבועי (כל שבוע)</option>
+                <option value="monthly">🔁 חודשי (כל חודש)</option>
+            </select>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-secondary" onclick="closeEditTaskModal()">ביטול</button>
+            <button onclick="submitEditTaskModal()">שמור שינויים</button>
+        </div>
+    </div>
+</div>
+
 <script>
     // ------------------------------------------------------------------
     // 🔑 טביעת האצבע המוצפנת של הסיסמה (SHA-256 Hash)
@@ -578,6 +630,7 @@
         }
     }
 
+    // ניהול מודאל הוספת משימה
     function openAddTaskModal() {
         const select = document.getElementById('modalTaskCategory');
         select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -620,19 +673,60 @@
         closeAddTaskModal();
     }
 
-    window.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeAddTaskModal();
-    });
-
-    function editTaskTitle(id) {
+    // ניהול מודאל עריכת משימה קיימת
+    function openEditTaskModal(id) {
         const task = tasks.find(t => t.id === id);
         if (!task) return;
-        
-        const newTitle = prompt("ערוך את שם המשימה:", task.title);
-        if (newTitle && newTitle.trim() !== "") {
-            db.ref(`tasks/${id}/title`).set(newTitle.trim());
-        }
+
+        document.getElementById('editTaskId').value = id;
+        document.getElementById('editTaskTitle').value = task.title || '';
+
+        const catSelect = document.getElementById('editTaskCategory');
+        catSelect.innerHTML = categories.map(c => `<option value="${c}" ${c === task.category ? 'selected' : ''}>${c}</option>`).join('');
+
+        document.getElementById('editTaskPriority').value = task.priority || 'בינונית';
+        document.getElementById('editTaskDueDate').value = task.dueDate || getTodayString();
+        document.getElementById('editTaskRecurring').value = task.recurring || 'none';
+
+        document.getElementById('editTaskModal').style.display = 'flex';
+        setTimeout(() => document.getElementById('editTaskTitle').focus(), 50);
     }
+
+    function closeEditTaskModal() {
+        document.getElementById('editTaskModal').style.display = 'none';
+    }
+
+    function submitEditTaskModal() {
+        const id = document.getElementById('editTaskId').value;
+        const title = document.getElementById('editTaskTitle').value.trim();
+        
+        if (!title) {
+            alert("נא להזין שם משימה");
+            return;
+        }
+
+        const category = document.getElementById('editTaskCategory').value;
+        const priority = document.getElementById('editTaskPriority').value;
+        const dueDate = document.getElementById('editTaskDueDate').value || getTodayString();
+        const recurring = document.getElementById('editTaskRecurring').value;
+
+        db.ref(`tasks/${id}`).update({
+            title: title,
+            category: category,
+            priority: priority,
+            dueDate: dueDate,
+            recurring: recurring
+        });
+
+        closeEditTaskModal();
+    }
+
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            closeAddTaskModal();
+            closeEditTaskModal();
+        }
+    });
 
     function deleteTask(id) {
         if (confirm("להסיר את המשימה?")) {
@@ -648,7 +742,6 @@
         const task = tasks.find(t => t.id === taskId);
         if (!task) return;
 
-        // אם המשימה חוזרת וסומנה כ'בוצע' - מחשבים מועד הבא ומחזירים לסטטוס פתוח
         if (newStatus === "בוצע" && task.recurring && task.recurring !== "none") {
             const nextDate = getNextDueDate(task.dueDate, task.recurring);
             db.ref(`tasks/${taskId}`).update({
@@ -774,7 +867,7 @@
                                 <td>
                                     <div class="task-title-container">
                                         <span class="drag-handle" title="גרור כדי להעביר קטגוריה">⠿</span>
-                                        <div class="task-title" onclick="editTaskTitle('${task.id}')">
+                                        <div class="task-title" onclick="openEditTaskModal('${task.id}')">
                                             <span>${task.title}</span>
                                             ${isRecurring ? `<span class="recurring-badge" title="משימה מחזורית: ${recurringLabel}">🔁 ${recurringLabel}</span>` : ''}
                                             <span class="edit-icon">✏️</span>
