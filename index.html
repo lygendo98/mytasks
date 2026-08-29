@@ -131,6 +131,18 @@
         .edit-icon { font-size: 12px; opacity: 0; transition: opacity 0.2s; }
         .task-title:hover .edit-icon { opacity: 1; }
 
+        .recurring-badge {
+            font-size: 12px;
+            background: #e6f7ff;
+            color: #0073ea;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-right: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+        }
+
         .badge-select {
             color: white; font-weight: bold; border: none; text-align: center;
             cursor: pointer; width: 110px; border-radius: 4px; height: 32px;
@@ -236,17 +248,10 @@
             margin-top: 20px;
         }
 
-        /* ==========================================================================
-           התאמה למסכי מובייל (Responsive Design)
-           ========================================================================== */
+        /* מובייל */
         @media (max-width: 768px) {
-            body {
-                padding: 12px;
-            }
-
-            h1 {
-                font-size: 22px;
-            }
+            body { padding: 12px; }
+            h1 { font-size: 22px; }
 
             .toolbar {
                 flex-direction: column;
@@ -267,9 +272,7 @@
                 gap: 8px;
             }
 
-            .toolbar div button {
-                flex: 1;
-            }
+            .toolbar div button { flex: 1; }
 
             .urgent-summary-card {
                 flex-direction: column;
@@ -278,20 +281,10 @@
                 text-align: center;
             }
 
-            .urgent-summary-card button {
-                width: 100%;
-            }
+            .urgent-summary-card button { width: 100%; }
 
-            /* הפיכת טבלה לכרטיסיות במובייל */
-            table, thead, tbody, th, td, tr {
-                display: block;
-            }
-
-            thead tr {
-                position: absolute;
-                top: -9999px;
-                left: -9999px;
-            }
+            table, thead, tbody, th, td, tr { display: block; }
+            thead tr { position: absolute; top: -9999px; left: -9999px; }
 
             tr.draggable-row {
                 background: #fff;
@@ -336,18 +329,14 @@
             }
 
             .badge-select, 
-            td input[type="date"] {
+            td input[type="date"],
+            td select.recurring-select-inline {
                 width: 55%;
                 max-width: 180px;
             }
 
-            .task-title-container {
-                width: 100%;
-            }
-
-            .edit-icon {
-                opacity: 1;
-            }
+            .task-title-container { width: 100%; }
+            .edit-icon { opacity: 1; }
         }
     </style>
 </head>
@@ -424,6 +413,16 @@
                 <label for="modalTaskDueDate">תאריך יעד</label>
                 <input type="date" id="modalTaskDueDate">
             </div>
+        </div>
+
+        <div class="form-group">
+            <label for="modalTaskRecurring">חזרתיות (אוטומטי)</label>
+            <select id="modalTaskRecurring">
+                <option value="none">ללא (חד-פעמי)</option>
+                <option value="daily">🔁 יומי (כל יום)</option>
+                <option value="weekly">🔁 שבועי (כל שבוע)</option>
+                <option value="monthly">🔁 חודשי (כל חודש)</option>
+            </select>
         </div>
 
         <div class="modal-actions">
@@ -522,6 +521,20 @@
         return new Date().toISOString().split('T')[0];
     }
 
+    function getNextDueDate(currentDateStr, recurringType) {
+        const baseDate = currentDateStr ? new Date(currentDateStr) : new Date();
+        const d = isNaN(baseDate.getTime()) ? new Date() : baseDate;
+        
+        if (recurringType === 'daily') {
+            d.setDate(d.getDate() + 1);
+        } else if (recurringType === 'weekly') {
+            d.setDate(d.getDate() + 7);
+        } else if (recurringType === 'monthly') {
+            d.setMonth(d.getMonth() + 1);
+        }
+        return d.toISOString().split('T')[0];
+    }
+
     function isTaskUrgent(task) {
         if (task.status === "בוצע") return false;
         if (!task.dueDate) return false;
@@ -572,6 +585,7 @@
         document.getElementById('modalTaskTitle').value = '';
         document.getElementById('modalTaskPriority').value = 'בינונית';
         document.getElementById('modalTaskDueDate').value = getTodayString();
+        document.getElementById('modalTaskRecurring').value = 'none';
         
         document.getElementById('taskModal').style.display = 'flex';
         setTimeout(() => document.getElementById('modalTaskTitle').focus(), 50);
@@ -591,6 +605,7 @@
         const category = document.getElementById('modalTaskCategory').value;
         const priority = document.getElementById('modalTaskPriority').value;
         const dueDate = document.getElementById('modalTaskDueDate').value || getTodayString();
+        const recurring = document.getElementById('modalTaskRecurring').value;
 
         const newTaskRef = db.ref('tasks').push();
         newTaskRef.set({
@@ -598,7 +613,8 @@
             category: category,
             status: "טרם התחיל",
             priority: priority,
-            dueDate: dueDate
+            dueDate: dueDate,
+            recurring: recurring
         });
 
         closeAddTaskModal();
@@ -626,6 +642,22 @@
 
     function updateTaskField(id, field, value) {
         db.ref(`tasks/${id}/${field}`).set(value);
+    }
+
+    function handleStatusChange(taskId, newStatus) {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+
+        // אם המשימה חוזרת וסומנה כ'בוצע' - מחשבים מועד הבא ומחזירים לסטטוס פתוח
+        if (newStatus === "בוצע" && task.recurring && task.recurring !== "none") {
+            const nextDate = getNextDueDate(task.dueDate, task.recurring);
+            db.ref(`tasks/${taskId}`).update({
+                status: "טרם התחיל",
+                dueDate: nextDate
+            });
+        } else {
+            db.ref(`tasks/${taskId}/status`).set(newStatus);
+        }
     }
 
     function handleDragStart(e, taskId) {
@@ -682,6 +714,12 @@
             return matchesCategory && matchesSearch && matchesUrgent;
         });
 
+        const recurringLabels = {
+            'daily': 'יומי',
+            'weekly': 'שבועי',
+            'monthly': 'חודשי'
+        };
+
         categories.forEach(category => {
             const categoryTasks = filteredTasks.filter(t => t.category === category);
             
@@ -706,12 +744,13 @@
                             <th style="width: 130px; text-align: center;">סטטוס</th>
                             <th style="width: 130px; text-align: center;">עדיפות</th>
                             <th style="width: 150px;">תאריך יעד</th>
+                            <th style="width: 110px; text-align: center;">חזרתיות</th>
                             <th style="width: 40px;"></th>
                         </tr>
                     </thead>
                     <tbody>
                         ${categoryTasks.length === 0 ? `
-                            <tr><td colspan="5" style="color: #888; font-style: italic;">גרור לכאן משימה או הוסף חדשה</td></tr>
+                            <tr><td colspan="6" style="color: #888; font-style: italic;">גרור לכאן משימה או הוסף חדשה</td></tr>
                         ` : categoryTasks.map(task => {
                             let dateClass = "date-normal";
                             let dateNotice = "";
@@ -725,6 +764,9 @@
                                 }
                             }
 
+                            const isRecurring = task.recurring && task.recurring !== 'none';
+                            const recurringLabel = isRecurring ? recurringLabels[task.recurring] || '' : '';
+
                             return `
                             <tr class="draggable-row" draggable="true" 
                                 ondragstart="handleDragStart(event, '${task.id}')"
@@ -734,13 +776,14 @@
                                         <span class="drag-handle" title="גרור כדי להעביר קטגוריה">⠿</span>
                                         <div class="task-title" onclick="editTaskTitle('${task.id}')">
                                             <span>${task.title}</span>
+                                            ${isRecurring ? `<span class="recurring-badge" title="משימה מחזורית: ${recurringLabel}">🔁 ${recurringLabel}</span>` : ''}
                                             <span class="edit-icon">✏️</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td data-label="סטטוס:" style="text-align: center;">
                                     <select class="badge-select status-${(task.status || '').replace(/\s+/g, '-')}" 
-                                            onchange="updateTaskField('${task.id}', 'status', this.value)">
+                                            onchange="handleStatusChange('${task.id}', this.value)">
                                         <option value="טרם התחיל" ${task.status === 'טרם התחיל' ? 'selected' : ''}>טרם התחיל</option>
                                         <option value="בעבודה" ${task.status === 'בעבודה' ? 'selected' : ''}>בעבודה</option>
                                         <option value="תקוע" ${task.status === 'תקוע' ? 'selected' : ''}>תקוע</option>
@@ -759,6 +802,15 @@
                                     <input type="date" value="${task.dueDate}" class="${dateClass}"
                                            onchange="updateTaskField('${task.id}', 'dueDate', this.value)">
                                     ${dateNotice}
+                                </td>
+                                <td data-label="חזרתיות:" style="text-align: center;">
+                                    <select class="recurring-select-inline" style="padding: 4px; font-size: 12px; border-radius: 4px;"
+                                            onchange="updateTaskField('${task.id}', 'recurring', this.value)">
+                                        <option value="none" ${(!task.recurring || task.recurring === 'none') ? 'selected' : ''}>חד פעמי</option>
+                                        <option value="daily" ${task.recurring === 'daily' ? 'selected' : ''}>יומי</option>
+                                        <option value="weekly" ${task.recurring === 'weekly' ? 'selected' : ''}>שבועי</option>
+                                        <option value="monthly" ${task.recurring === 'monthly' ? 'selected' : ''}>חודשי</option>
+                                    </select>
                                 </td>
                                 <td class="mobile-action-row">
                                     <button class="btn-delete" onclick="deleteTask('${task.id}')" title="מחק משימה">🗑️ מחק</button>
@@ -786,7 +838,8 @@
             category: data.category || categories[0],
             status: data.status || "טרם התחיל",
             priority: data.priority || "בינונית",
-            dueDate: data.dueDate || getTodayString()
+            dueDate: data.dueDate || getTodayString(),
+            recurring: data.recurring || "none"
         }),
         deleteTask: (id) => db.ref(`tasks/${id}`).remove()
     };
