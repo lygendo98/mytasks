@@ -181,7 +181,6 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
 
-        /* מודאלים מעוצבים */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
@@ -248,7 +247,6 @@
             margin-top: 20px;
         }
 
-        /* מובייל */
         @media (max-width: 768px) {
             body { padding: 12px; }
             h1 { font-size: 22px; }
@@ -422,6 +420,7 @@
                 <option value="daily">🔁 יומי (כל יום)</option>
                 <option value="weekly">🔁 שבועי (כל שבוע)</option>
                 <option value="monthly">🔁 חודשי (כל חודש)</option>
+                <option value="bimonthly">🔁 דו-חודשי (כל חודשיים)</option>
             </select>
         </div>
 
@@ -474,6 +473,7 @@
                 <option value="daily">🔁 יומי (כל יום)</option>
                 <option value="weekly">🔁 שבועי (כל שבוע)</option>
                 <option value="monthly">🔁 חודשי (כל חודש)</option>
+                <option value="bimonthly">🔁 דו-חודשי (כל חודשיים)</option>
             </select>
         </div>
 
@@ -583,6 +583,8 @@
             d.setDate(d.getDate() + 7);
         } else if (recurringType === 'monthly') {
             d.setMonth(d.getMonth() + 1);
+        } else if (recurringType === 'bimonthly') {
+            d.setMonth(d.getMonth() + 2);
         }
         return d.toISOString().split('T')[0];
     }
@@ -630,7 +632,6 @@
         }
     }
 
-    // ניהול מודאל הוספת משימה
     function openAddTaskModal() {
         const select = document.getElementById('modalTaskCategory');
         select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -673,7 +674,6 @@
         closeAddTaskModal();
     }
 
-    // ניהול מודאל עריכת משימה קיימת
     function openEditTaskModal(id) {
         const task = tasks.find(t => t.id === id);
         if (!task) return;
@@ -810,7 +810,8 @@
         const recurringLabels = {
             'daily': 'יומי',
             'weekly': 'שבועי',
-            'monthly': 'חודשי'
+            'monthly': 'חודשי',
+            'bimonthly': 'דו-חודשי'
         };
 
         categories.forEach(category => {
@@ -837,7 +838,7 @@
                             <th style="width: 130px; text-align: center;">סטטוס</th>
                             <th style="width: 130px; text-align: center;">עדיפות</th>
                             <th style="width: 150px;">תאריך יעד</th>
-                            <th style="width: 110px; text-align: center;">חזרתיות</th>
+                            <th style="width: 120px; text-align: center;">חזרתיות</th>
                             <th style="width: 40px;"></th>
                         </tr>
                     </thead>
@@ -903,6 +904,7 @@
                                         <option value="daily" ${task.recurring === 'daily' ? 'selected' : ''}>יומי</option>
                                         <option value="weekly" ${task.recurring === 'weekly' ? 'selected' : ''}>שבועי</option>
                                         <option value="monthly" ${task.recurring === 'monthly' ? 'selected' : ''}>חודשי</option>
+                                        <option value="bimonthly" ${task.recurring === 'bimonthly' ? 'selected' : ''}>דו-חודשי</option>
                                     </select>
                                 </td>
                                 <td class="mobile-action-row">
