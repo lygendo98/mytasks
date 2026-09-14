@@ -90,6 +90,17 @@
             font-size: 18px; font-weight: bold; margin-bottom: 12px; color: var(--primary);
         }
 
+        .group-header-actions {
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        .btn-add-cat-task {
+            background-color: #e8f0fe; color: var(--primary); border: 1px solid var(--primary);
+            padding: 4px 10px; border-radius: 4px; font-size: 13px; cursor: pointer;
+            font-weight: 600;
+        }
+        .btn-add-cat-task:hover { background-color: var(--primary); color: white; }
+
         .btn-delete-cat {
             background: none; color: #e2445c; border: 1px solid #e2445c;
             padding: 4px 8px; border-radius: 4px; font-size: 12px; cursor: pointer;
@@ -640,9 +651,9 @@
         }
     }
 
-    function openAddTaskModal() {
+    function openAddTaskModal(preselectedCategory = null) {
         const select = document.getElementById('modalTaskCategory');
-        select.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+        select.innerHTML = categories.map(c => `<option value="${c}" ${c === preselectedCategory ? 'selected' : ''}>${c}</option>`).join('');
         
         document.getElementById('modalTaskTitle').value = '';
         document.getElementById('modalTaskPriority').value = 'בינונית';
@@ -846,7 +857,10 @@
             groupEl.innerHTML = `
                 <div class="group-header">
                     <div>📂 ${category} (${categoryTasks.length})</div>
-                    <button class="btn-delete-cat" onclick="deleteCategory('${category}')">🗑️ מחק קטגוריה</button>
+                    <div class="group-header-actions">
+                        <button class="btn-add-cat-task" onclick="openAddTaskModal('${category}')">+ משימה</button>
+                        <button class="btn-delete-cat" onclick="deleteCategory('${category}')">🗑️ מחק</button>
+                    </div>
                 </div>
                 <table>
                     <thead>
@@ -861,7 +875,7 @@
                     </thead>
                     <tbody>
                         ${categoryTasks.length === 0 ? `
-                            <tr><td colspan="6" style="color: #888; font-style: italic;">גרור לכאן משימה או הוסף חדשה</td></tr>
+                            <tr><td colspan="6" style="color: #888; font-style: italic;">אין משימות בקטגוריה זו. לחץ על "+ משימה" להוספה</td></tr>
                         ` : categoryTasks.map(task => {
                             let dateClass = "date-normal";
                             let dateNotice = "";
