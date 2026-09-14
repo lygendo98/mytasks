@@ -574,18 +574,26 @@
     }
 
     function getNextDueDate(currentDateStr, recurringType) {
-        const baseDate = currentDateStr ? new Date(currentDateStr) : new Date();
-        const d = isNaN(baseDate.getTime()) ? new Date() : baseDate;
-        
-        if (recurringType === 'daily') {
-            d.setDate(d.getDate() + 1);
-        } else if (recurringType === 'weekly') {
-            d.setDate(d.getDate() + 7);
-        } else if (recurringType === 'monthly') {
-            d.setMonth(d.getMonth() + 1);
-        } else if (recurringType === 'bimonthly') {
-            d.setMonth(d.getMonth() + 2);
-        }
+        let d = currentDateStr ? new Date(currentDateStr) : new Date();
+        if (isNaN(d.getTime())) d = new Date();
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        do {
+            if (recurringType === 'daily') {
+                d.setDate(d.getDate() + 1);
+            } else if (recurringType === 'weekly') {
+                d.setDate(d.getDate() + 7);
+            } else if (recurringType === 'monthly') {
+                d.setMonth(d.getMonth() + 1);
+            } else if (recurringType === 'bimonthly') {
+                d.setMonth(d.getMonth() + 2);
+            } else {
+                break;
+            }
+        } while (d < today);
+
         return d.toISOString().split('T')[0];
     }
 
@@ -707,15 +715,24 @@
 
         const category = document.getElementById('editTaskCategory').value;
         const priority = document.getElementById('editTaskPriority').value;
-        const dueDate = document.getElementById('editTaskDueDate').value || getTodayString();
+        let dueDate = document.getElementById('editTaskDueDate').value || getTodayString();
         const recurring = document.getElementById('editTaskRecurring').value;
+
+        const currentTask = tasks.find(t => t.id === id);
+        let nextStatus = currentTask ? currentTask.status : "טרם התחיל";
+
+        if (recurring !== "none" && nextStatus === "בוצע") {
+            nextStatus = "טרם התחיל";
+            dueDate = getNextDueDate(dueDate, recurring);
+        }
 
         db.ref(`tasks/${id}`).update({
             title: title,
             category: category,
             priority: priority,
             dueDate: dueDate,
-            recurring: recurring
+            recurring: recurring,
+            status: nextStatus
         });
 
         closeEditTaskModal();
