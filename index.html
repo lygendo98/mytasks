@@ -10,7 +10,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
   
-    
     <style>
         :root {
             --bg-main: #f5f6f8;
@@ -518,7 +517,7 @@
     ];
 
     const firebaseConfig = {
-        apiKey: "AIzaSyAnFD98tsBIz8pVBQOSYHFDsCz2hpuSD4g",
+        apiKey: "AIzaSyAnfD98tsBIz8pVBQOSYHFDsCz2hpuSD4g",
         authDomain: "my-tasks-app-27dd6.firebaseapp.com",
         databaseURL: "https://my-tasks-app-27dd6-default-rtdb.firebaseio.com",
         projectId: "my-tasks-app-27dd6",
@@ -554,29 +553,34 @@
         initFirebase();
     }
 
-function initFirebase() {
-    if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
+    function initFirebase() {
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        db = firebase.database();
+
+        // התחברות מאובטחת בחשבון שהוגדר ב-Authentication
+        const authEmail = "lyongend@gmail.com";
+        const authPassword = "YOUR_PASSWORD"; 
+
+        firebase.auth().signInWithEmailAndPassword(authEmail, authPassword)
+            .then(() => {
+                console.log("התחברות לענן הושלמה בהצלחה!");
+                startListening();
+            })
+            .catch((error) => {
+                console.error("שגיאה בהתחברות לענן:", error.message);
+                const syncStatusEl = document.getElementById('syncStatus');
+                if (syncStatusEl) {
+                    syncStatusEl.innerText = '🔴 שגיאת התחברות לענן';
+                    syncStatusEl.style.color = '#cf1322';
+                }
+                alert("שגיאה בהתחברות לענן: " + error.message);
+            });
     }
-    db = firebase.database();
 
-    // התחברות מאובטחת בחשבון שהגדרת
-    const authEmail = "lyongend@gmail.com";
-    const authPassword = "Lyon5800"; 
-
-    firebase.auth().signInWithEmailAndPassword(authEmail, authPassword)
-        .then(() => {
-            console.log("התחברות לענן הושלמה בהצלחה!");
-            startListening();
-        })
-        .catch((error) => {
-            console.error("שגיאה בהתחברות לענן:", error.message);
-            alert("שגיאה בהתחברות לענן: " + error.message);
-        });
-}
-
-function startListening() {
-    db.ref().on('value', (snapshot) => {
+    function startListening() {
+        db.ref().on('value', (snapshot) => {
             const data = snapshot.val() || {};
             
             categories = data.categories || defaultCategories;
@@ -593,6 +597,7 @@ function startListening() {
             const syncStatusEl = document.getElementById('syncStatus');
             if (syncStatusEl) {
                 syncStatusEl.innerText = '🟢 מסונכרן בזמן אמת בענן';
+                syncStatusEl.style.color = '#676879';
             }
             renderApp();
         });
@@ -912,14 +917,13 @@ function startListening() {
 
                             return `
                             <tr class="draggable-row" draggable="true" 
-                                ondragstart="handleDragStart(event, '${task.id}')"
+                                ondragstart="handleDragStart(event, '${task.id}')" 
                                 ondragend="handleDragEnd(event)">
                                 <td>
                                     <div class="task-title-container">
                                         <span class="drag-handle" title="גרור כדי להעביר קטגוריה">⠿</span>
                                         <div class="task-title" onclick="openEditTaskModal('${task.id}')">
-                                            <span>${task.title}</span>
-                                            ${isRecurring ? `<span class="recurring-badge" title="משימה מחזורית: ${recurringLabel}">🔁 ${recurringLabel}</span>` : ''}
+                                            <span>${task.title}</span>${isRecurring ? `<span class="recurring-badge" title="משימה מחזורית: ${recurringLabel}">🔁 ${recurringLabel}</span>` : ''}
                                             <span class="edit-icon">✏️</span>
                                         </div>
                                     </div>
