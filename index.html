@@ -8,18 +8,8 @@
     <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-  // התחברות מאובטחת לחשבון
-const authEmail = "lyongend@gmail.com";     // 
-const authPassword = "Lyon5800";           // 
-
-firebase.auth().signInWithEmailAndPassword(authEmail, authPassword)
-  .then((userCredential) => {
-      console.log("התחברות לענן הושלמה בהצלחה!");
-      // כאן ממשיך קוד משיכת המשימות הרגיל שלך
-  })
-  .catch((error) => {
-      console.error("שגיאה בהתחברות לענן:", error.message);
-  });
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  
     
     <style>
         :root {
@@ -564,13 +554,29 @@ firebase.auth().signInWithEmailAndPassword(authEmail, authPassword)
         initFirebase();
     }
 
-    function initFirebase() {
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        db = firebase.database();
+function initFirebase() {
+    if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+    }
+    db = firebase.database();
 
-        db.ref().on('value', (snapshot) => {
+    // התחברות מאובטחת בחשבון שהגדרת
+    const authEmail = "lyongend@gmail.com";
+    const authPassword = "Lyon5800"; 
+
+    firebase.auth().signInWithEmailAndPassword(authEmail, authPassword)
+        .then(() => {
+            console.log("התחברות לענן הושלמה בהצלחה!");
+            startListening();
+        })
+        .catch((error) => {
+            console.error("שגיאה בהתחברות לענן:", error.message);
+            alert("שגיאה בהתחברות לענן: " + error.message);
+        });
+}
+
+function startListening() {
+    db.ref().on('value', (snapshot) => {
             const data = snapshot.val() || {};
             
             categories = data.categories || defaultCategories;
