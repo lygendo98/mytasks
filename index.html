@@ -9,7 +9,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-  
+
     <style>
         :root {
             --bg-main: #f5f6f8;
@@ -559,7 +559,6 @@
         }
         db = firebase.database();
 
-        // התחברות מאובטחת בחשבון שהוגדר ב-Authentication
         const authEmail = "lyongend@gmail.com";
         const authPassword = "Lyon5800"; 
 
@@ -589,10 +588,19 @@
             }
 
             const tasksObj = data.tasks || {};
-            tasks = Object.keys(tasksObj).map(key => ({
-                id: key,
-                ...tasksObj[key]
-            }));
+            // מנגנון הגנה: השלמת ערכי ברירת מחדל לכל משימה חיצונית שמגיעה ללא שדות מלאים
+            tasks = Object.keys(tasksObj).map(key => {
+                const item = tasksObj[key] || {};
+                return {
+                    id: key,
+                    title: item.title || "משימה ללא שם",
+                    category: item.category || (categories[0] || "משימות שוטפות"),
+                    status: item.status || "טרם התחיל",
+                    priority: item.priority || "בינונית",
+                    dueDate: item.dueDate || getTodayString(),
+                    recurring: item.recurring || "none"
+                };
+            });
 
             const syncStatusEl = document.getElementById('syncStatus');
             if (syncStatusEl) {
@@ -917,7 +925,7 @@
 
                             return `
                             <tr class="draggable-row" draggable="true" 
-                                ondragstart="handleDragStart(event, '${task.id}')" 
+                                ondragstart="handleDragStart(event, '${task.id}')"
                                 ondragend="handleDragEnd(event)">
                                 <td>
                                     <div class="task-title-container">
